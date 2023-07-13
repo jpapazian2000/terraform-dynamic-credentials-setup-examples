@@ -3,6 +3,7 @@
 
 provider "vault" {
   address = var.vault_url
+  namespace = var.vault_namespace
 }
 
 # Enables the jwt auth backend in Vault at the given path,
@@ -11,6 +12,7 @@ provider "vault" {
 # https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/jwt_auth_backend
 resource "vault_jwt_auth_backend" "tfc_jwt" {
   path               = var.jwt_backend_path
+  #namespace = var.vault_namespace
   type               = "jwt"
   oidc_discovery_url = "https://${var.tfc_hostname}"
   bound_issuer       = "https://${var.tfc_hostname}"
@@ -22,7 +24,7 @@ resource "vault_jwt_auth_backend" "tfc_jwt" {
 #
 # https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/jwt_auth_backend_role
 resource "vault_jwt_auth_backend_role" "tfc_role" {
-  namespace      = var.vault_namespace
+  #namespace      = var.vault_namespace
   backend        = vault_jwt_auth_backend.tfc_jwt.path
   role_name      = "tfc-role"
   token_policies = [vault_policy.tfc_policy.name]
@@ -30,7 +32,9 @@ resource "vault_jwt_auth_backend_role" "tfc_role" {
   bound_audiences   = [var.tfc_vault_audience]
   bound_claims_type = "glob"
   bound_claims = {
+    #sub = "organization:${var.tfc_organization_name}:project:${var.tfc_project_name}:workspace:${var.tfc_workspace_name}:run_phase:*"
     sub = "organization:${var.tfc_organization_name}:project:${var.tfc_project_name}:workspace:${var.tfc_workspace_name}:run_phase:*"
+
   }
   user_claim = "terraform_full_workspace"
   role_type  = "jwt"
@@ -44,6 +48,7 @@ resource "vault_jwt_auth_backend_role" "tfc_role" {
 # https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy
 resource "vault_policy" "tfc_policy" {
   name = "tfc-policy"
+  #namespace = var.vault_namespace
 
   policy = <<EOT
 # Allow tokens to query themselves
@@ -74,12 +79,17 @@ EOT
 #
 # https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/gcp_secret_backend
 resource "vault_gcp_secret_backend" "gcp_secret_backend" {
-  namespace = var.vault_namespace
+  #namespace = var.vault_namespace
   path      = "gcp"
+
 
   # WARNING - These values will be written in plaintext in the statefiles for this configuration. 
   # Protect the statefiles for this configuration accordingly!
   credentials = base64decode(google_service_account_key.secrets_engine_key.private_key)
+  depends_on = [
+   google_service_account.secrets_engine,
+   google_project_iam_member.secrets_engine
+  ]
 }
 
 # 
@@ -87,16 +97,23 @@ resource "vault_gcp_secret_backend" "gcp_secret_backend" {
 # https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/gcp_secret_roleset
 resource "vault_gcp_secret_roleset" "gcp_secret_roleset" {
   backend      = vault_gcp_secret_backend.gcp_secret_backend.path
+  #namespace = var.vault_namespace
   roleset      = "project_viewer"
   secret_type  = "access_token"
-  project      = data.google_project.current.project_id
+  project      = var.google_project
   token_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 
   binding {
-    resource = "//cloudresourcemanager.googleapis.com/projects/${data.google_project.current.project_id}"
+    resource = "//cloudresourcemanager.googleapis.com/projects/${var.google_project}"
 
     roles = [
-      "roles/viewer",
+      "roles/compute.instanceAdmin.v1",
+      "roles/compute.networkAdmin",
+      "roles/compute.securityAdmin"
     ]
   }
+  depends_on = [
+   google_service_account.secrets_engine,
+   google_project_iam_member.secrets_engine
+  ]
 }

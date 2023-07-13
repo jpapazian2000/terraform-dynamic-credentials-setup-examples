@@ -2,6 +2,15 @@
 # SPDX-License-Identifier: MPL-2.0
 
 # Variables for TFE/TFC
+variable "google_project" {
+  type = string
+  description = "google project id"
+}
+
+variable "google_region" {
+  type = string
+  default = "europe-west3"
+}
 
 variable "tfc_hostname" {
   type        = string
@@ -16,7 +25,7 @@ variable "tfc_organization_name" {
 
 variable "tfc_project_name" {
   type        = string
-  default     = "Default Project"
+  default     = "dynamic_creds"
   description = "The project under which a workspace will be created"
 }
 
@@ -28,6 +37,11 @@ variable "tfc_workspace_name" {
 
 # Variables for Vault
 
+variable "vault_namespace" {
+  type = string
+  description = "vault namespace where auth and secrets are created"
+}
+
 variable "vault_url" {
   type        = string
   description = "The URL of the Vault instance you'd like to use with Terraform Cloud"
@@ -35,14 +49,8 @@ variable "vault_url" {
 
 variable "jwt_backend_path" {
   type        = string
-  default     = "jwt"
+  default     = "gitlab_jwt"
   description = "The path at which you'd like to mount the jwt auth backend in Vault"
-}
-
-variable "vault_namespace" {
-  type        = string
-  default     = "admin"
-  description = "The namespace of the Vault instance you'd like to create the GCP and jwt auth backends in"
 }
 
 variable "tfc_vault_audience" {
